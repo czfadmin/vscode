@@ -1411,6 +1411,11 @@ declare module 'vscode' {
 		 * ```typescript
 		 * vscode.commands.executeCommand('vscode.openFolder', uriOfWorkspace);
 		 * ```
+		 *
+		 * **Note:** it is not advised to use `workspace.uri` to write configuration
+		 * data into the file. You can use `workspace.getConfiguration().update()`
+		 * for that purpose which will work both when a single folder is opened as
+		 * well as an untitled or saved workspace.
 		 */
 		export const uri: Uri | undefined;
 	}
