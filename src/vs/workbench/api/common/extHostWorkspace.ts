@@ -67,7 +67,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 			return { workspace: null, added: [], removed: [] };
 		}
 
-		const { id, name, folders, configuration } = data;
+		const { id, name, folders, configuration, isUntitled } = data;
 		const newWorkspaceFolders: vscode.WorkspaceFolder[] = [];
 
 		// If we have an existing workspace, we try to find the folders that match our
@@ -95,7 +95,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 		// make sure to restore sort order based on index
 		newWorkspaceFolders.sort((f1, f2) => f1.index < f2.index ? -1 : 1);
 
-		const workspace = new ExtHostWorkspaceImpl(id, name, newWorkspaceFolders, configuration ? URI.revive(configuration) : null);
+		const workspace = new ExtHostWorkspaceImpl(id, name, newWorkspaceFolders, configuration ? URI.revive(configuration) : null, !!isUntitled);
 		const { added, removed } = delta(oldWorkspace ? oldWorkspace.workspaceFolders : [], workspace.workspaceFolders, compareWorkspaceFolderByUri);
 
 		return { workspace, added, removed };
@@ -115,7 +115,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
 	private readonly _structure = TernarySearchTree.forPaths<vscode.WorkspaceFolder>();
 
-	constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[], configuration: URI | null) {
+	constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[], configuration: URI | null, private _isUntitled: boolean) {
 		super(id, folders.map(f => new WorkspaceFolder(f)), configuration);
 
 		// setup the workspace folder data structure
@@ -127,6 +127,10 @@ class ExtHostWorkspaceImpl extends Workspace {
 
 	get name(): string {
 		return this._name;
+	}
+
+	get isUntitled(): boolean {
+		return this._isUntitled;
 	}
 
 	get workspaceFolders(): vscode.WorkspaceFolder[] {
@@ -175,7 +179,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWorkspace);
 		this._messageService = mainContext.getProxy(MainContext.MainThreadMessageService);
-		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], data.configuration ? URI.revive(data.configuration) : null) : undefined;
+		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], data.configuration ? URI.revive(data.configuration) : null, !!data.isUntitled) : undefined;
 	}
 
 	$initializeWorkspace(data: IWorkspaceData): void {
@@ -198,15 +202,18 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 
 	get uri(): vscode.Uri | undefined {
+		if (this._actualWorkspace) {
+			if (this._actualWorkspace.isUntitled) {
+				return undefined; // Untitled Worspace: unsupported for opening
+			}
 
-		// Workspace: return the configuration location
-		if (this._actualWorkspace && this._actualWorkspace.configuration) {
-			return this._actualWorkspace.configuration;
-		}
+			if (this._actualWorkspace.configuration) {
+				return this._actualWorkspace.configuration; // Workspace: return the configuration location
+			}
 
-		// Single Folder: return the folder location
-		if (this._actualWorkspace && this._actualWorkspace.folders.length === 1) {
-			return this._actualWorkspace.folders[0].uri;
+			if (this._actualWorkspace.folders.length === 1) {
+				return this._actualWorkspace.folders[0].uri; // Single Folder: return the folder location
+			}
 		}
 
 		return undefined;
@@ -380,7 +387,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				id: this._actualWorkspace.id,
 				name: this._actualWorkspace.name,
 				configuration: this._actualWorkspace.configuration,
-				folders
+				folders,
+				isUntitled: this._actualWorkspace.isUntitled
 			} as IWorkspaceData, this._actualWorkspace).workspace || undefined;
 		}
 	}

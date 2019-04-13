@@ -1397,8 +1397,20 @@ declare module 'vscode' {
 	export namespace workspace {
 
 		/**
-		 * The location of the workspace. `undefined` when no folder
-		 * has been opened.
+		 * The location of the workspace. Depending on the workspace that
+		 * is opened, the value will be:
+		 *  * `undefined` when no workspace or folder is opened
+		 *  * `undefined` when an untitled workspace is opened
+		 *  * the path of the folder as `Uri` if a single folder is opened
+		 *  * the path of the workspace file as `Uri` if a workspace is opened
+		 *
+		 * The location can e.g. be used with the `vscode.openFolder` command to
+		 * open the workspace again after it has been closed.
+		 *
+		 * **Example:**
+		 * ```typescript
+		 * vscode.commands.executeCommand('vscode.openFolder', uriOfWorkspace);
+		 * ```
 		 */
 		export const uri: Uri | undefined;
 	}
